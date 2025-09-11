@@ -1,5 +1,5 @@
-use std::process;
 use minigrep;
+use std::process;
 
 fn main() {
     let args = minigrep::parse_args();
