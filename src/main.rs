@@ -1,12 +1,11 @@
 use clap::{Arg, ArgMatches, Command};
-use minigrep::FormatFlags;
-use minigrep::format_line;
-use minigrep::search;
-use std::error::Error;
-use std::fs;
-use std::io::{self, Read};
-use std::process;
-use std::time::Instant;
+use minigrep::{OutputFlags, SearchFlags, format_line, search};
+use std::{
+    error::Error,
+    fs,
+    io::{self, Read},
+    process,
+};
 
 fn main() {
     let args = Command::new("minigrep")
@@ -25,17 +24,18 @@ fn main() {
                 .help("Disable line numbers"),
         )
         .arg(
-            Arg::new("bench")
-                .long("bench")
-                .action(clap::ArgAction::SetTrue)
-                .help("Run a basic performance benchmark"),
-        )
-        .arg(
             Arg::new("quiet")
                 .long("quiet")
                 .short('q')
                 .action(clap::ArgAction::SetTrue)
                 .help("Suppress output"),
+        )
+        .arg(
+            Arg::new("case-insensitive")
+                .long("case-insensitive")
+                .short('i')
+                .action(clap::ArgAction::SetTrue)
+                .help("Case insensitive searching"),
         )
         .get_matches();
 
@@ -43,11 +43,6 @@ fn main() {
         eprintln!("Problem parsing arguments: {err}");
         process::exit(1);
     });
-
-    if args.get_flag("bench") {
-        run_bench(&config);
-        return;
-    }
 
     if let Err(e) = run(config) {
         eprintln!("Application error: {e}");
@@ -64,55 +59,29 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
         fs::read_to_string(config.file_path)?
     };
 
-    let matched_lines = search(&config.query, &contents);
+    let query_len = config.query.len();
 
-    if config.quiet {
+    let matched_lines = search(&config.query, &contents, &config.search_flags);
+
+    if config.output_flags.quiet {
         return Ok(());
     }
 
     for matched_line in matched_lines {
         println!(
             "{}",
-            format_line(&config.format_flags, matched_line, config.query.len())
+            format_line(&config.output_flags, matched_line, query_len)
         );
     }
 
     Ok(())
 }
 
-fn run_bench(config: &Config) {
-    let iterations = 10;
-    let contents = if config.file_path == "-" {
-        let mut buff = String::new();
-        io::stdin().read_to_string(&mut buff).unwrap();
-        buff
-    } else {
-        fs::read_to_string(&config.file_path).unwrap()
-    };
-
-    let start = Instant::now();
-    let mut total_matches = 0;
-    for _ in 0..iterations {
-        let matched_lines = search(&config.query, &contents);
-        total_matches += matched_lines.len();
-    }
-    let duration = start.elapsed();
-    println!(
-        "Searched '{}' in '{}' {} times in {:.2?} (avg: {:.2?} per run, total matches: {})",
-        config.query,
-        config.file_path,
-        iterations,
-        duration,
-        duration / iterations,
-        total_matches
-    );
-}
-
 struct Config {
     query: String,
     file_path: String,
-    quiet: bool,
-    format_flags: FormatFlags,
+    search_flags: SearchFlags,
+    output_flags: OutputFlags,
 }
 
 impl Config {
@@ -124,8 +93,13 @@ impl Config {
                 .map(|s| s.as_str())
                 .unwrap_or("-")
                 .to_string(),
-            quiet: args.get_flag("quiet"),
-            format_flags: FormatFlags::new(!args.get_flag("no-color"), !args.get_flag("no-lines")),
+
+            output_flags: OutputFlags::new(
+                !args.get_flag("no-color"),
+                !args.get_flag("no-lines"),
+                args.get_flag("quiet"),
+            ),
+            search_flags: SearchFlags::new(args.get_flag("case-insensitive")),
         })
     }
 }

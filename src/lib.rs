@@ -15,28 +15,47 @@ impl<'a> MatchedLine<'a> {
     }
 }
 
+pub struct SearchFlags {
+    case_insensitive: bool,
+}
+
+impl SearchFlags {
+    pub fn new(case_insensitive: bool) -> Self {
+        SearchFlags { case_insensitive }
+    }
+}
+
 /**
  * Search contents for instances of query. Returns a list of Match structs which capture the line
  * and information about the location of the match.
  */
-pub fn search<'a>(query: &str, contents: &'a str) -> Vec<MatchedLine<'a>> {
+pub fn search<'a>(query: &str, contents: &'a str, flags: &SearchFlags) -> Vec<MatchedLine<'a>> {
     if query.is_empty() {
         return Vec::new();
     }
 
     let mut matched_lines: Vec<MatchedLine> = Vec::new();
+    let mut query = query.to_string();
+    if flags.case_insensitive {
+        query.make_ascii_lowercase();
+    }
 
     for (line_number, line) in contents.lines().enumerate() {
         let mut matched_line = MatchedLine::new(line, line_number as u32);
+
+        let mut line = line.to_string();
+        if flags.case_insensitive {
+            line.make_ascii_lowercase();
+        }
+
         let mut start = 0;
-        while let Some(index) = line[start..].find(query) {
+        while let Some(index) = line[start..].find(&query) {
             let idx = start + index;
             matched_line.locations.push(idx);
             start = idx + 1;
         }
 
-        if start != 0 {
-            //found a match
+        if !matched_line.locations.is_empty() {
             matched_lines.push(matched_line);
         }
     }
@@ -61,14 +80,19 @@ fn merge_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     return merged;
 }
 
-pub struct FormatFlags {
+pub struct OutputFlags {
     color: bool,
     lines: bool,
+    pub quiet: bool,
 }
 
-impl FormatFlags {
-    pub fn new(color: bool, lines: bool) -> Self {
-        FormatFlags { color, lines }
+impl OutputFlags {
+    pub fn new(color: bool, lines: bool, quiet: bool) -> Self {
+        OutputFlags {
+            color,
+            lines,
+            quiet,
+        }
     }
 }
 
@@ -77,7 +101,7 @@ impl FormatFlags {
  * Uses information supplied in Match struct, which represents the line and location of a match
  * found by fn search().
  */
-pub fn format_line(flags: &FormatFlags, matched: MatchedLine, query_len: usize) -> String {
+pub fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> String {
     let mut line = String::from(matched.line);
 
     if flags.color {
