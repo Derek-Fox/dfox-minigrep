@@ -61,15 +61,26 @@ fn merge_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     return merged;
 }
 
+pub struct FormatFlags {
+    color: bool,
+    lines: bool,
+}
+
+impl FormatFlags {
+    pub fn new(color: bool, lines: bool) -> Self {
+        FormatFlags { color, lines }
+    }
+}
+
 /**
  * Add formatting to a string. Specifically, prepend a line number and optionally color.
  * Uses information supplied in Match struct, which represents the line and location of a match
  * found by fn search().
  */
-pub fn format_line(color: bool, matched: MatchedLine, query_len: usize) -> String {
+pub fn format_line(flags: &FormatFlags, matched: MatchedLine, query_len: usize) -> String {
     let mut line = String::from(matched.line);
 
-    if color {
+    if flags.color {
         let ranges: Vec<(usize, usize)> = matched
             .locations
             .iter()
@@ -81,7 +92,10 @@ pub fn format_line(color: bool, matched: MatchedLine, query_len: usize) -> Strin
         }
     }
 
-    format!("{}] {}", matched.line_number + 1, line)
+    if flags.lines {
+        line = format!("{:04}] {}", matched.line_number + 1, line);
+    }
+    return line;
 }
 
 /**
