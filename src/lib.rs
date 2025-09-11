@@ -1,38 +1,64 @@
-pub struct Match<'a> {
+pub struct MatchedLine<'a> {
     line: &'a str,
-    location: LocInfo,
+    line_number: u32,
+    locations: Vec<usize>,
 }
 
-struct LocInfo {
-    line_number: usize,
-    index: usize,
-    query_len: usize,
+impl<'a> MatchedLine<'a> {
+    /// Create a MatchedLine with an empty locations vec
+    pub fn new(line: &'a str, line_number: u32) -> Self {
+        MatchedLine {
+            line,
+            line_number,
+            locations: Vec::new(),
+        }
+    }
 }
 
 /**
  * Search contents for instances of query. Returns a list of Match structs which capture the line
  * and information about the location of the match.
  */
-pub fn search<'a>(query: &str, contents: &'a str) -> Vec<Match<'a>> {
-    let mut matches: Vec<Match> = Vec::new();
-
-    for (line_number, line) in contents.lines().enumerate() {
-        let index = match line.find(query) {
-            Some(idx) => idx,
-            None => continue,
-        };
-
-        matches.push(Match {
-            line,
-            location: LocInfo {
-                line_number,
-                index,
-                query_len: query.len(),
-            },
-        });
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<MatchedLine<'a>> {
+    if query.is_empty() {
+        return Vec::new();
     }
 
-    return matches;
+    let mut matched_lines: Vec<MatchedLine> = Vec::new();
+
+    for (line_number, line) in contents.lines().enumerate() {
+        let mut matched_line = MatchedLine::new(line, line_number as u32);
+        let mut start = 0;
+        while let Some(index) = line[start..].find(query) {
+            let idx = start + index;
+            matched_line.locations.push(idx);
+            start = idx + 1;
+        }
+
+        if start != 0 {
+            //found a match
+            matched_lines.push(matched_line);
+        }
+    }
+    return matched_lines;
+}
+
+/// Merge overlapping or adjacent ranges.
+/// Each range is a (start, end) tuple.
+fn merge_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+    let mut merged = Vec::new();
+    let mut current = ranges[0];
+
+    for range in ranges.into_iter().skip(1) {
+        if range.0 <= current.1 {
+            current.1 = current.1.max(range.1);
+        } else {
+            merged.push(current);
+            current = range;
+        }
+    }
+    merged.push(current);
+    return merged;
 }
 
 /**
@@ -40,20 +66,22 @@ pub fn search<'a>(query: &str, contents: &'a str) -> Vec<Match<'a>> {
  * Uses information supplied in Match struct, which represents the line and location of a match
  * found by fn search().
  */
-pub fn format_line(color: bool, matched: Match) -> String {
-    let line_num_str = format!("{} ", matched.location.line_number + 1);
-    let mut formatted_line = format!("{line_num_str}{}", matched.line);
+pub fn format_line(color: bool, matched: MatchedLine, query_len: usize) -> String {
+    let mut line = String::from(matched.line);
 
     if color {
-        let adjusted_idx = line_num_str.len() + matched.location.index;
-        colorize_range(
-            adjusted_idx,
-            matched.location.query_len,
-            &mut formatted_line,
-        );
+        let ranges: Vec<(usize, usize)> = matched
+            .locations
+            .iter()
+            .map(|&loc| (loc, loc + query_len))
+            .collect();
+        let merged = merge_ranges(ranges);
+        for (start, end) in merged.into_iter().rev() {
+            colorize_range(start, end - start, &mut line);
+        }
     }
 
-    return formatted_line;
+    format!("{}] {}", matched.line_number + 1, line)
 }
 
 /**

@@ -22,10 +22,10 @@ fn main() {
 fn run(config: Config) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(config.file_path)?;
 
-    let matches = search(&config.query, &contents);
+    let matched_lines = search(&config.query, &contents);
 
-    for matched_line in matches {
-        println!("{}", format_line(config.color, matched_line));
+    for matched_line in matched_lines {
+        println!("{}", format_line(config.color, matched_line, config.query.len()));
     }
 
     Ok(())
