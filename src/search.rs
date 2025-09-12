@@ -5,8 +5,7 @@ pub(crate) struct MatchedLine<'a> {
 }
 
 impl<'a> MatchedLine<'a> {
-    /// Create a MatchedLine with an empty locations vec
-    pub fn new(line: &'a str, line_number: u32) -> Self {
+    pub(crate) fn new(line: &'a str, line_number: u32) -> Self {
         MatchedLine {
             line,
             line_number,
@@ -15,12 +14,12 @@ impl<'a> MatchedLine<'a> {
     }
 }
 
-pub struct SearchFlags {
+pub(crate) struct SearchFlags {
     case_insensitive: bool,
 }
 
 impl SearchFlags {
-    pub fn new(case_insensitive: bool) -> Self {
+    pub(crate) fn new(case_insensitive: bool) -> Self {
         SearchFlags { case_insensitive }
     }
 }
@@ -29,7 +28,11 @@ impl SearchFlags {
  * Search contents for instances of query. Returns a list of Match structs which capture the line
  * and information about the location of the match.
  */
-pub(crate) fn search<'a>(query: &str, contents: &'a str, flags: &SearchFlags) -> Vec<MatchedLine<'a>> {
+pub(crate) fn search<'a>(
+    query: &str,
+    contents: &'a str,
+    flags: &SearchFlags,
+) -> Vec<MatchedLine<'a>> {
     if query.is_empty() {
         return Vec::new();
     }

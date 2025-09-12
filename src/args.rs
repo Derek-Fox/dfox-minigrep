@@ -1,11 +1,28 @@
+use crate::{
+    output::{self, OutputFlags},
+    search::{self, SearchFlags},
+};
 use clap::{Arg, ArgMatches, Command};
+use std::{
+    error::Error,
+    fs,
+    io::{self, Read},
+};
 
-use crate::search;
-use crate::{search::SearchFlags, output::OutputFlags, output::format_line};
-use std::error::Error;
-use std::fs;
-use std::io;
-use std::io::Read;
+pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    let contents = if config.file_path == "-" {
+        let mut buff = String::new();
+        io::stdin().read_to_string(&mut buff)?;
+        buff
+    } else {
+        fs::read_to_string(config.file_path)?
+    };
+
+    let matched_lines = search::search(&config.query, &contents, &config.search_flags);
+    output::output(matched_lines, config.query, &config.output_flags);
+
+    Ok(())
+}
 
 pub fn parse_args() -> ArgMatches {
     Command::new("minigrep")
@@ -37,6 +54,13 @@ pub fn parse_args() -> ArgMatches {
                 .action(clap::ArgAction::SetTrue)
                 .help("Case insensitive searching"),
         )
+        .arg(
+            Arg::new("count")
+                .long("count")
+                .short('c')
+                .action(clap::ArgAction::SetTrue)
+                .help("Output a count of matches found"),
+        )
         .get_matches()
 }
 
@@ -61,35 +85,9 @@ impl Config {
                 !args.get_flag("no-color"),
                 !args.get_flag("no-lines"),
                 args.get_flag("quiet"),
+                args.get_flag("count"),
             ),
             search_flags: SearchFlags::new(args.get_flag("case-insensitive")),
         }
     }
-}
-
-pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let contents = if config.file_path == "-" {
-        let mut buff = String::new();
-        io::stdin().read_to_string(&mut buff)?;
-        buff
-    } else {
-        fs::read_to_string(config.file_path)?
-    };
-
-    let query_len = config.query.len();
-
-    let matched_lines = search::search(&config.query, &contents, &config.search_flags);
-
-    if config.output_flags.quiet {
-        return Ok(());
-    }
-
-    for matched_line in matched_lines {
-        println!(
-            "{}",
-            format_line(&config.output_flags, matched_line, query_len)
-        );
-    }
-
-    Ok(())
 }

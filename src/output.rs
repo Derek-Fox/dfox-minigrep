@@ -1,18 +1,36 @@
 use crate::search::MatchedLine;
 
-pub struct OutputFlags {
+pub(crate) struct OutputFlags {
     color: bool,
     lines: bool,
-    pub quiet: bool,
+    quiet: bool,
+    count: bool,
 }
 
 impl OutputFlags {
-    pub fn new(color: bool, lines: bool, quiet: bool) -> Self {
+    pub(crate) fn new(color: bool, lines: bool, quiet: bool, count: bool) -> Self {
         OutputFlags {
             color,
             lines,
             quiet,
+            count,
         }
+    }
+}
+
+pub(crate) fn output(matched_lines: Vec<MatchedLine>, query: String, flags: &OutputFlags) {
+    if flags.quiet {
+        return;
+    }
+
+    let count = matched_lines.len();
+
+    for matched_line in matched_lines {
+        println!("{}", format_line(flags, matched_line, query.len()));
+    }
+
+    if flags.count {
+        println!("Number of matches: {count}");
     }
 }
 
@@ -21,7 +39,7 @@ impl OutputFlags {
  * Uses information supplied in Match struct, which represents the line and location of a match
  * found by fn search().
  */
-pub(crate) fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> String {
+fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> String {
     let mut line = String::from(matched.line);
 
     if flags.color {

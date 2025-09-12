@@ -1,5 +1,5 @@
 pub mod args;
-pub mod output;
-pub mod search;
+mod output;
+mod search;
 
-pub use args::{Config, parse_args, run};
+pub use crate::args::{Config, parse_args, run};
