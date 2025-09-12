@@ -28,7 +28,7 @@ impl SearchFlags {
  * Search contents for instances of query. Returns a list of Match structs which capture the line
  * and information about the location of the match.
  */
-pub(crate) fn search<'a>(
+pub(crate) fn search_contents<'a>(
     query: &str,
     contents: &'a str,
     flags: &SearchFlags,

@@ -1,6 +1,6 @@
 use crate::{
-    output::{self, OutputFlags},
-    search::{self, SearchFlags},
+    output::{OutputFlags, output_matches},
+    search::{SearchFlags, search_contents},
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{
@@ -18,8 +18,8 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         fs::read_to_string(config.file_path)?
     };
 
-    let matched_lines = search::search(&config.query, &contents, &config.search_flags);
-    output::output(matched_lines, config.query, &config.output_flags);
+    let matched_lines = search_contents(&config.query, &contents, &config.search_flags);
+    output_matches(matched_lines, config.query, &config.output_flags);
 
     Ok(())
 }

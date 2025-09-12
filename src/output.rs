@@ -18,7 +18,7 @@ impl OutputFlags {
     }
 }
 
-pub(crate) fn output(matched_lines: Vec<MatchedLine>, query: String, flags: &OutputFlags) {
+pub(crate) fn output_matches(matched_lines: Vec<MatchedLine>, query: String, flags: &OutputFlags) {
     if flags.quiet {
         return;
     }
