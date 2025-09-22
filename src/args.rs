@@ -1,6 +1,6 @@
 use crate::{
-    output::{OutputFlags, output_matches},
-    search::{SearchFlags, search_contents},
+    output::{output_matches, OutputFlags},
+    search::{search_contents, search_dir, FileMatches, SearchFlags},
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{
@@ -10,18 +10,28 @@ use std::{
 };
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let contents = if config.file_path == "-" {
-        let mut buff = String::new();
-        io::stdin().read_to_string(&mut buff)?;
-        buff
+    let matches: Vec<FileMatches>;
+    if fs::metadata(&config.file_path)?.is_dir() {
+        matches = search_dir(&config.query, config.file_path, &config.search_flags);
     } else {
-        fs::read_to_string(config.file_path)?
-    };
+        let contents = if config.file_path == "-" {
+            let mut buff = String::new();
+            io::stdin().read_to_string(&mut buff)?;
+            buff
+        } else {
+            fs::read_to_string(&config.file_path)?
+        };
 
-    let matched_lines = search_contents(&config.query, &contents, &config.search_flags);
-    output_matches(matched_lines, config.query, &config.output_flags);
+        matches = vec![search_contents(
+            &config.query,
+            contents,
+            &config.file_path,
+            &config.search_flags,
+        )];
 
-    Ok(())
+    }
+        output_matches(matches, config.query, &config.output_flags);
+        Ok(())
 }
 
 pub fn parse_args() -> ArgMatches {
@@ -74,7 +84,7 @@ pub struct Config {
 impl Config {
     pub fn new(args: &clap::ArgMatches) -> Self {
         Config {
-            query: args.get_one::<String>("query").unwrap().clone(),
+            query: args.get_one::<String>("query").unwrap().to_string(),
             file_path: args
                 .get_one::<String>("file")
                 .map(|s| s.as_str())

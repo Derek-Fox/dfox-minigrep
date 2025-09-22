@@ -1,4 +1,4 @@
-use crate::search::MatchedLine;
+use crate::search::{FileMatches, MatchedLine};
 
 pub(crate) struct OutputFlags {
     color: bool,
@@ -18,15 +18,19 @@ impl OutputFlags {
     }
 }
 
-pub(crate) fn output_matches(matched_lines: Vec<MatchedLine>, query: String, flags: &OutputFlags) {
+pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flags: &OutputFlags) {
     if flags.quiet {
         return;
     }
 
-    let count = matched_lines.len();
+    let mut count = 0;
 
-    for matched_line in matched_lines {
-        println!("{}", format_line(flags, matched_line, query.len()));
+    for file in file_matches {
+        println!("-- {} --", file.file_path);
+        for line in file.matches {
+            println!("{}", format_line(flags, line, query.len()));
+            count += 1;
+        }
     }
 
     if flags.count {
