@@ -1,7 +1,4 @@
-use std::{
-    fs::{self, DirEntry},
-    io::Error,
-};
+use std::fs::{self, DirEntry};
 
 pub(crate) struct FileMatches {
     pub(crate) file_path: String,
@@ -90,6 +87,7 @@ pub(crate) fn search_dir(
             dir_results.append(&mut result);
         }
     }
+
     return Some(dir_results);
 }
 
@@ -107,21 +105,22 @@ pub(crate) fn search_contents(
         return None;
     }
 
-    let mut query = query.to_string();
+    let mut query_copy = query.clone(); // Don't want to affect the original query string
     if flags.case_insensitive {
-        query.make_ascii_lowercase();
+        query_copy.make_ascii_lowercase();
     }
 
     let mut matched_lines: Vec<MatchedLine> = Vec::new();
     for (line_number, line) in contents.lines().enumerate() {
         let mut match_locations = Vec::new();
-        let mut line = line.to_string();
+
+        let mut line_copy = line.to_string(); // Same as above but for the buffer contents
         if flags.case_insensitive {
-            line.make_ascii_lowercase();
+            line_copy.make_ascii_lowercase();
         }
 
         let mut start = 0;
-        while let Some(index) = line[start..].find(&query) {
+        while let Some(index) = line_copy[start..].find(&query_copy) {
             let idx = start + index;
             match_locations.push(idx);
             start = idx + 1;
@@ -129,7 +128,7 @@ pub(crate) fn search_contents(
 
         if !match_locations.is_empty() {
             matched_lines.push(MatchedLine {
-                line,
+                line: line.to_string(),
                 line_number: line_number as u32,
                 locations: match_locations,
             });

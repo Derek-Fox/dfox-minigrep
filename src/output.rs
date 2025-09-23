@@ -29,7 +29,7 @@ pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flag
 
     for file in file_matches {
         let Some(mut file_name) = Path::new(&file.file_path).file_name().unwrap().to_str() else {
-            //call 'unsafe' unwrap because how tf would we get to this point with ../.. ???
+            //call 'unsafe' unwrap because how tf would we get to this point with /.. ???
             panic!("Invalid unicode in file_name");
         };
 
