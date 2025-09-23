@@ -28,10 +28,15 @@ pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flag
     let mut count = 0;
 
     for file in file_matches {
-        let file_name = match Path::new(&file.file_path).file_name().unwrap().to_str() { //call 'unsafe' unwrap because how tf would we get to this point with ../.. ???
-            None => panic!("Invalid unicode in file_name"),
-            Some(name) => name,
+        let Some(mut file_name) = Path::new(&file.file_path).file_name().unwrap().to_str() else {
+            //call 'unsafe' unwrap because how tf would we get to this point with ../.. ???
+            panic!("Invalid unicode in file_name");
         };
+
+        if file_name == "-" {
+            file_name = "stdin"
+        }
+
         println!("-- {file_name} --");
         for line in file.matches {
             println!("{}", format_line(flags, line, query.len()));
@@ -46,8 +51,6 @@ pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flag
 
 /**
  * Add formatting to a string. Specifically, prepend a line number and optionally color.
- * Uses information supplied in Match struct, which represents the line and location of a match
- * found by fn search().
  */
 fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> String {
     let mut line = String::from(matched.line);
@@ -70,8 +73,9 @@ fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> S
     return line;
 }
 
-/// Merge overlapping or adjacent ranges.
-/// Each range is a (start, end) tuple.
+/**
+ * Merge overlapping or adjacent ranges. Each range is a (start, end) tuple.
+ */
 fn merge_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     let mut merged = Vec::new();
     let mut current = ranges[0];
@@ -87,6 +91,7 @@ fn merge_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     merged.push(current);
     return merged;
 }
+
 /**
  * Using ANSI escape sequence for red, colorize the range in line from [idx, idx+length).
  */

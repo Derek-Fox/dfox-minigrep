@@ -1,4 +1,7 @@
-use std::fs;
+use std::{
+    fs::{self, DirEntry},
+    io::Error,
+};
 
 pub(crate) struct FileMatches {
     pub(crate) file_path: String,
@@ -10,16 +13,6 @@ pub(crate) struct MatchedLine {
     pub(crate) locations: Vec<usize>,
 }
 
-impl MatchedLine {
-    pub(crate) fn new(line: String, line_number: u32) -> Self {
-        MatchedLine {
-            line,
-            line_number,
-            locations: Vec::new(),
-        }
-    }
-}
-
 pub(crate) struct SearchFlags {
     case_insensitive: bool,
 }
@@ -29,6 +22,30 @@ impl SearchFlags {
         SearchFlags { case_insensitive }
     }
 }
+
+/**
+ * Check metadata of file_path to see if it is a file. Returns false on failure to access metadata.
+ */
+fn is_file(file_path: &String) -> bool {
+    match fs::metadata(&file_path) {
+        Err(e) => {
+            eprintln!("Error occured when trying to access metadata of {file_path}: {e}");
+            return false;
+        }
+        Ok(metadata) => metadata.is_file(),
+    }
+}
+
+/**
+ * Get the canonical file path as a string.
+ */
+fn canonical_path_str(dir_entry: DirEntry) -> Option<String> {
+    let Ok(canon_path) = dir_entry.path().canonicalize() else {
+        return None;
+    };
+    Some(canon_path.to_string_lossy().to_string())
+}
+
 /**
  * Recursively search directory. Searches all files in the directory, and searches any/all subdirectories.
  */
@@ -36,65 +53,44 @@ pub(crate) fn search_dir(
     query: &String,
     file_path: String,
     flags: &SearchFlags,
-) -> Vec<FileMatches> {
+) -> Option<Vec<FileMatches>> {
     /* First check if we have a file. If so, try to read its contents and get matches. Base case of recursion. */
-    match fs::metadata(&file_path) {
-        Err(e) => {
-            eprintln!("Error occured when trying to access metadata of {file_path}: {e}");
-            return Vec::new();
-        }
-        Ok(metadata) => {
-            if metadata.is_file() {
-                let contents = match fs::read_to_string(&file_path) {
-                    Err(_) => return Vec::new(), //file doesn't contain valid unicode -> happens all the time, don't need to warn user about that
-                    Ok(x) => x,
-                };
-                if let Some(matches) = search_contents(query, contents, &file_path, flags) {
-                    return vec![matches];
-                } else {
-                    return Vec::new();
-                }
-            }
+    if is_file(&file_path) {
+        let Ok(contents) = fs::read_to_string(&file_path) else {
+            return None; // file doesn't contain valid Unicode - just ignore it
+        };
+        if let Some(matches) = search_contents(query, contents, &file_path, flags) {
+            return Some(vec![matches]);
+        } else {
+            return None;
         }
     }
 
+    /* Get an iterator over contents of directory */
     let dir_iter = match fs::read_dir(&file_path) {
         Err(e) => {
             eprint!("Error occurred when trying to access {file_path}: {e}");
-            return Vec::new();
+            return None;
         }
-        Ok(iter) => iter,
+        Ok(x) => x,
     };
 
+    /* Iterate over contents and recursively process each. */
     let mut dir_results: Vec<_> = Vec::new();
     for dir_entry in dir_iter {
-        let canon_path = match dir_entry {
-            Err(_e) => {
-                eprintln!("Failed to retrieve next entry from OS. (idk man)");
-                continue;
-            }
-            Ok(dir) => match dir.path().canonicalize() {
-                Err(e) => {
-                    eprintln!("Error occurred when trying to get the path of {dir:#?}: {e}");
-                    continue;
-                }
-                Ok(path) => path,
-            },
-        };
-        let path_str = match canon_path.to_str() {
-            None => {
-                eprintln!("Error, {canon_path:#?} contains invalid unicode.");
-                continue;
-            }
-            Some(s) => s,
+        let Ok(dir) = dir_entry else {
+            continue;
         };
 
-        let mut result = search_dir(query, path_str.to_string(), &flags);
-        if !result.is_empty() {
+        let Some(path_str) = canonical_path_str(dir) else {
+            continue;
+        };
+
+        if let Some(mut result) = search_dir(query, path_str.to_string(), &flags) {
             dir_results.append(&mut result);
         }
     }
-    return dir_results;
+    return Some(dir_results);
 }
 
 /**
@@ -111,15 +107,14 @@ pub(crate) fn search_contents(
         return None;
     }
 
-    let mut matched_lines: Vec<MatchedLine> = Vec::new();
     let mut query = query.to_string();
     if flags.case_insensitive {
         query.make_ascii_lowercase();
     }
 
+    let mut matched_lines: Vec<MatchedLine> = Vec::new();
     for (line_number, line) in contents.lines().enumerate() {
-        let mut matched_line = MatchedLine::new(line.to_string(), line_number as u32);
-
+        let mut match_locations = Vec::new();
         let mut line = line.to_string();
         if flags.case_insensitive {
             line.make_ascii_lowercase();
@@ -128,12 +123,16 @@ pub(crate) fn search_contents(
         let mut start = 0;
         while let Some(index) = line[start..].find(&query) {
             let idx = start + index;
-            matched_line.locations.push(idx);
+            match_locations.push(idx);
             start = idx + 1;
         }
 
-        if !matched_line.locations.is_empty() {
-            matched_lines.push(matched_line);
+        if !match_locations.is_empty() {
+            matched_lines.push(MatchedLine {
+                line,
+                line_number: line_number as u32,
+                locations: match_locations,
+            });
         }
     }
 

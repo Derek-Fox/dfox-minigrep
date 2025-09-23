@@ -3,40 +3,31 @@ use crate::{
     search::{FileMatches, SearchFlags, search_contents, search_dir},
 };
 use clap::{Arg, ArgMatches, Command};
-use std::{
-    error::Error,
-    fs,
-    io::{self, Read},
-};
+use std::io::{self, Read};
 
-pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let results: Vec<FileMatches>;
-    if fs::metadata(&config.file_path)?.is_dir() {
-        results = search_dir(&config.query, config.file_path, &config.search_flags);
+fn handle_stdin(config: &Config) -> Option<Vec<FileMatches>> {
+    let mut buff = String::new();
+    io::stdin()
+        .read_to_string(&mut buff)
+        .expect("Invalid UTF-8");
+    if let Some(matches) =
+        search_contents(&config.query, buff, &config.file_path, &config.search_flags)
+    {
+        return Some(vec![matches]);
+    }
+    None
+}
+
+pub fn run(config: Config) {
+    let results = if config.file_path == "-" {
+        handle_stdin(&config)
     } else {
-        let contents = if config.file_path == "-" {
-            let mut buff = String::new();
-            io::stdin().read_to_string(&mut buff)?;
-            buff
-        } else {
-            fs::read_to_string(&config.file_path)?
-        };
+        search_dir(&config.query, config.file_path, &config.search_flags)
+    };
 
-        if let Some(matches) = search_contents(
-            &config.query,
-            contents,
-            &config.file_path,
-            &config.search_flags,
-        ) {
-            results = vec![matches];
-        } else {
-            results = Vec::new();
-        }
+    if let Some(matches) = results {
+        output_matches(matches, config.query, &config.output_flags);
     }
-    if !results.is_empty() {
-        output_matches(results, config.query, &config.output_flags);
-    }
-    Ok(())
 }
 
 pub fn parse_args() -> ArgMatches {
