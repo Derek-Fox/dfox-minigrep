@@ -4,6 +4,7 @@ pub(crate) struct FileMatches {
     pub(crate) file_path: String,
     pub(crate) matches: Vec<MatchedLine>,
 }
+
 pub(crate) struct MatchedLine {
     pub(crate) line: String,
     pub(crate) line_number: u32,
@@ -54,7 +55,7 @@ pub(crate) fn search_dir(
     /* First check if we have a file. If so, try to read its contents and get matches. Base case of recursion. */
     if is_file(&file_path) {
         let Ok(contents) = fs::read_to_string(&file_path) else {
-            return None; // file doesn't contain valid Unicode - just ignore it
+            return None; // file doesn't contain valid UTF-8 - just ignore it
         };
         if let Some(matches) = search_contents(query, contents, &file_path, flags) {
             return Some(vec![matches]);
