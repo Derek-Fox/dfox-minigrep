@@ -1,4 +1,3 @@
-
 use crate::search::{FileMatches, MatchedLine};
 
 pub(crate) struct OutputFlags {
@@ -60,7 +59,8 @@ fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> S
     if flags.lines {
         line = format!("{:04}] {}", matched.line_number, line);
     }
-    return line;
+
+    line
 }
 
 /**
@@ -79,16 +79,16 @@ fn merge_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
         }
     }
     merged.push(current);
-    return merged;
+    merged
 }
 
 /**
  * Using ANSI escape sequence for red, colorize the range in line from [idx, idx+length).
  */
-fn colorize_range(idx: usize, length: usize, line: &mut String) {
+fn colorize_range(start: usize, length: usize, line: &mut String) {
     let red = "\x1b[31m";
-    let default = "\x1b[0m";
+    let uncolor = "\x1b[0m";
 
-    line.insert_str(idx + length, default);
-    line.insert_str(idx, red);
+    line.insert_str(start + length, uncolor);
+    line.insert_str(start, red);
 }

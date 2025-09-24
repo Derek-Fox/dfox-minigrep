@@ -22,14 +22,14 @@ impl SearchFlags {
 }
 
 /**
- * Check metadata of file_path to see if it is a file. Returns false on failure to access metadata.
+ * Check metadata of path to see if it is a file. Returns false on failure to access metadata.
  */
-fn is_file(file_path: &PathBuf) -> bool {
-    match fs::metadata(&file_path) {
+fn is_file(path: &PathBuf) -> bool {
+    match fs::metadata(&path) {
         Err(e) => {
             eprintln!(
                 "Error occured when trying to access metadata of {}: {e}",
-                file_path.display()
+                path.display()
             );
             return false;
         }
@@ -42,12 +42,12 @@ fn is_file(file_path: &PathBuf) -> bool {
  */
 pub(crate) fn search_dir(
     query: &String,
-    file_path: &PathBuf,
+    path: &PathBuf,
     flags: &SearchFlags,
 ) -> Option<Vec<FileMatches>> {
     /* First check if we have a file. If so, try to read its contents and get matches. Base case of recursion. */
-    if is_file(file_path) {
-        if let Some(matches) = search_contents(query, file_path, flags) {
+    if is_file(path) {
+        if let Some(matches) = search_contents(query, path, flags) {
             return Some(vec![matches]);
         } else {
             return None;
@@ -55,11 +55,11 @@ pub(crate) fn search_dir(
     }
 
     /* Get an iterator over contents of directory */
-    let dir_iter = match fs::read_dir(&file_path) {
+    let dir_iter = match fs::read_dir(&path) {
         Err(e) => {
             eprintln!(
                 "Error occurred when trying to access {}: {e}",
-                file_path.display()
+                path.display()
             );
             return None;
         }
@@ -67,18 +67,17 @@ pub(crate) fn search_dir(
     };
 
     /* Iterate over contents and recursively process each. */
-    let mut dir_results: Vec<_> = Vec::new();
-    for dir_entry in dir_iter {
-        let Ok(dir) = dir_entry else {
-            continue;
-        };
+    let dir_results: Vec<FileMatches> = dir_iter
+        .filter_map(|dir_entry| dir_entry.ok()) // Only get Err for OS issue - just ignore
+        .filter_map(|dir| search_dir(query, &dir.path(), flags)) // recursively call for each subdir, throw away Nones
+        .flatten() // Vec<Vec<FileMatches>> -> Vec<FileMatches>
+        .collect();
 
-        if let Some(mut result) = search_dir(query, &dir.path(), &flags) {
-            dir_results.append(&mut result);
-        }
+    if dir_results.is_empty() {
+        return None;
     }
 
-    return Some(dir_results);
+    Some(dir_results)
 }
 
 /**
@@ -90,10 +89,6 @@ pub(crate) fn search_contents(
     file_path: &PathBuf,
     flags: &SearchFlags,
 ) -> Option<FileMatches> {
-    if query.is_empty() {
-        return None;
-    }
-
     let Ok(contents) = fs::read_to_string(file_path) else {
         return None; // file doesn't contain valid UTF-8 - just ignore it
     };
@@ -130,10 +125,10 @@ pub(crate) fn search_contents(
 
     if matched_lines.is_empty() {
         return None;
-    } else {
-        return Some(FileMatches {
-            file_path: file_path.to_path_buf(),
-            matches: matched_lines,
-        });
     }
+
+    Some(FileMatches {
+        file_path: file_path.to_path_buf(),
+        matches: matched_lines,
+    })
 }
