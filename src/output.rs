@@ -1,4 +1,3 @@
-use std::path::Path;
 
 use crate::search::{FileMatches, MatchedLine};
 
@@ -28,16 +27,7 @@ pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flag
     let mut count = 0;
 
     for file in file_matches {
-        let Some(mut file_name) = Path::new(&file.file_path).file_name().unwrap().to_str() else {
-            //call 'unsafe' unwrap because how tf would we get to this point with /.. ???
-            panic!("Invalid unicode in file_name");
-        };
-
-        if file_name == "-" {
-            file_name = "stdin"
-        }
-
-        println!("-- {file_name} --");
+        println!("-- {} --", file.file_path.display());
         for line in file.matches {
             println!("{}", format_line(flags, line, query.len()));
             count += 1;
@@ -68,7 +58,7 @@ fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> S
     }
 
     if flags.lines {
-        line = format!("{:04}] {}", matched.line_number + 1, line);
+        line = format!("{:04}] {}", matched.line_number, line);
     }
     return line;
 }

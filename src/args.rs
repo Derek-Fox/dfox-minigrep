@@ -1,31 +1,12 @@
 use crate::{
     output::{OutputFlags, output_matches},
-    search::{FileMatches, SearchFlags, search_contents, search_dir},
+    search::{SearchFlags, search_dir},
 };
 use clap::{Arg, ArgMatches, Command};
-use std::io::{self, Read};
-
-fn handle_stdin(config: &Config) -> Option<Vec<FileMatches>> {
-    let mut buff = String::new();
-    io::stdin()
-        .read_to_string(&mut buff)
-        .expect("Invalid UTF-8");
-    if let Some(matches) =
-        search_contents(&config.query, buff, &config.file_path, &config.search_flags)
-    {
-        return Some(vec![matches]);
-    }
-    None
-}
+use std::path::PathBuf;
 
 pub fn run(config: Config) {
-    let results = if config.file_path == "-" {
-        handle_stdin(&config)
-    } else {
-        search_dir(&config.query, config.file_path, &config.search_flags)
-    };
-
-    if let Some(matches) = results {
+    if let Some(matches) = search_dir(&config.query, &config.file_path, &config.search_flags) {
         output_matches(matches, config.query, &config.output_flags);
     }
 }
@@ -33,7 +14,7 @@ pub fn run(config: Config) {
 pub fn parse_args() -> ArgMatches {
     Command::new("minigrep")
         .arg(Arg::new("query").required(true))
-        .arg(Arg::new("file").required(false))
+        .arg(Arg::new("file").required(true))
         .arg(
             Arg::new("no-color")
                 .long("no-color")
@@ -72,7 +53,7 @@ pub fn parse_args() -> ArgMatches {
 
 pub struct Config {
     query: String,
-    file_path: String,
+    file_path: PathBuf,
     search_flags: SearchFlags,
     output_flags: OutputFlags,
 }
@@ -81,11 +62,7 @@ impl Config {
     pub fn new(args: &clap::ArgMatches) -> Self {
         Config {
             query: args.get_one::<String>("query").unwrap().to_string(),
-            file_path: args
-                .get_one::<String>("file")
-                .map(|s| s.as_str())
-                .unwrap_or("-")
-                .to_string(),
+            file_path: PathBuf::from(args.get_one::<String>("file").map_or("-", |v| v)),
 
             output_flags: OutputFlags::new(
                 !args.get_flag("no-color"),

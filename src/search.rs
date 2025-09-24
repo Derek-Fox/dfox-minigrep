@@ -1,7 +1,7 @@
-use std::fs::{self, DirEntry};
+use std::{fs, path::PathBuf};
 
 pub(crate) struct FileMatches {
-    pub(crate) file_path: String,
+    pub(crate) file_path: PathBuf,
     pub(crate) matches: Vec<MatchedLine>,
 }
 
@@ -24,10 +24,13 @@ impl SearchFlags {
 /**
  * Check metadata of file_path to see if it is a file. Returns false on failure to access metadata.
  */
-fn is_file(file_path: &String) -> bool {
+fn is_file(file_path: &PathBuf) -> bool {
     match fs::metadata(&file_path) {
         Err(e) => {
-            eprintln!("Error occured when trying to access metadata of {file_path}: {e}");
+            eprintln!(
+                "Error occured when trying to access metadata of {}: {e}",
+                file_path.display()
+            );
             return false;
         }
         Ok(metadata) => metadata.is_file(),
@@ -35,29 +38,16 @@ fn is_file(file_path: &String) -> bool {
 }
 
 /**
- * Get the canonical file path as a string.
- */
-fn canonical_path_str(dir_entry: DirEntry) -> Option<String> {
-    let Ok(canon_path) = dir_entry.path().canonicalize() else {
-        return None;
-    };
-    Some(canon_path.to_string_lossy().to_string())
-}
-
-/**
  * Recursively search directory. Searches all files in the directory, and searches any/all subdirectories.
  */
 pub(crate) fn search_dir(
     query: &String,
-    file_path: String,
+    file_path: &PathBuf,
     flags: &SearchFlags,
 ) -> Option<Vec<FileMatches>> {
     /* First check if we have a file. If so, try to read its contents and get matches. Base case of recursion. */
-    if is_file(&file_path) {
-        let Ok(contents) = fs::read_to_string(&file_path) else {
-            return None; // file doesn't contain valid UTF-8 - just ignore it
-        };
-        if let Some(matches) = search_contents(query, contents, &file_path, flags) {
+    if is_file(file_path) {
+        if let Some(matches) = search_contents(query, file_path, flags) {
             return Some(vec![matches]);
         } else {
             return None;
@@ -67,7 +57,10 @@ pub(crate) fn search_dir(
     /* Get an iterator over contents of directory */
     let dir_iter = match fs::read_dir(&file_path) {
         Err(e) => {
-            eprint!("Error occurred when trying to access {file_path}: {e}");
+            eprintln!(
+                "Error occurred when trying to access {}: {e}",
+                file_path.display()
+            );
             return None;
         }
         Ok(x) => x,
@@ -80,11 +73,7 @@ pub(crate) fn search_dir(
             continue;
         };
 
-        let Some(path_str) = canonical_path_str(dir) else {
-            continue;
-        };
-
-        if let Some(mut result) = search_dir(query, path_str.to_string(), &flags) {
+        if let Some(mut result) = search_dir(query, &dir.path(), &flags) {
             dir_results.append(&mut result);
         }
     }
@@ -98,13 +87,16 @@ pub(crate) fn search_dir(
  */
 pub(crate) fn search_contents(
     query: &String,
-    contents: String,
-    file_path: &String,
+    file_path: &PathBuf,
     flags: &SearchFlags,
 ) -> Option<FileMatches> {
     if query.is_empty() {
         return None;
     }
+
+    let Ok(contents) = fs::read_to_string(file_path) else {
+        return None; // file doesn't contain valid UTF-8 - just ignore it
+    };
 
     let mut query_copy = query.clone(); // Don't want to affect the original query string
     if flags.case_insensitive {
@@ -130,7 +122,7 @@ pub(crate) fn search_contents(
         if !match_locations.is_empty() {
             matched_lines.push(MatchedLine {
                 line: line.to_string(),
-                line_number: line_number as u32,
+                line_number: line_number as u32 + 1, // lines start at 1
                 locations: match_locations,
             });
         }
@@ -140,7 +132,7 @@ pub(crate) fn search_contents(
         return None;
     } else {
         return Some(FileMatches {
-            file_path: file_path.to_string(),
+            file_path: file_path.to_path_buf(),
             matches: matched_lines,
         });
     }
