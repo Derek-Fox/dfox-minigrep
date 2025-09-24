@@ -1,6 +1,6 @@
 # (derek fox's) minigrep
 
-`minigrep` is a simple command-line tool written in Rust for searching text within files, similar to the classic `grep` utility. This version expands on the implementation showcased [here](https://doc.rust-lang.org/book/ch12-00-an-io-project.html), in the 'Rust Book'. It supports colored output, line numbers, case-insensitive search, and can read from files or standard input.
+`minigrep` is a simple command-line tool written in Rust for searching text within files, similar to the classic `grep` utility. This version expands on the implementation showcased [here](https://doc.rust-lang.org/book/ch12-00-an-io-project.html), in the 'Rust Book'. It supports colored output, line numbers, case-insensitive search, counting matches, quiet-mode, and can recurse through directory trees.
 
 ## Features
 
@@ -14,11 +14,11 @@
 ## Usage
 
 ```sh
-minigrep <query> <file> [OPTIONS]
+minigrep [OPTIONS] <query> <path>
 ```
 
 - `<query>`: The string to search for (required)
-- `<file>`: The file to search in
+- `<path>`: The file or directory to search in
 
 ## Options
 
@@ -45,10 +45,10 @@ Search for "foo" in file.txt with colored output and line numbers:
 minigrep foo file.txt
 ```
 
-Suppress output (useful for scripting):
+Recursively search for all matches in a directory:
 
 ```sh
-minigrep -q foo file.txt
+minigrep foo dir/
 ```
 
 Building
