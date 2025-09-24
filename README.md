@@ -4,20 +4,21 @@
 
 ## Features
 
-- Search for a query string in a file or from standard input
+- Search for a query string in a file
 - Optional colored highlighting of matches
 - Optional display of line numbers
 - Case-insensitive search option
 - Quiet mode to suppress output
+- Option to output the count of matches
 
 ## Usage
 
 ```sh
-minigrep <query> [file] [OPTIONS]
+minigrep <query> <file> [OPTIONS]
 ```
 
 - `<query>`: The string to search for (required)
-- `[file]`: The file to search in. Use `-` or omit to read from standard input.
+- `<file>`: The file to search in
 
 ## Options
 
@@ -33,6 +34,9 @@ minigrep <query> [file] [OPTIONS]
 - `--case-insensitive`, `-i`
   Perform a case-insensitive search.
 
+- `--count`, `-c`
+  Out the number of matches found.
+
 ## Examples
 
 Search for "foo" in file.txt with colored output and line numbers:
@@ -41,16 +45,10 @@ Search for "foo" in file.txt with colored output and line numbers:
 minigrep foo file.txt
 ```
 
-Search for "bar" in standard input, case-insensitive, without color:
-
-```sh
-cat file.txt | minigrep bar --case-insensitive --no-color
-```
-
 Suppress output (useful for scripting):
 
 ```sh
-minigrep foo file.txt --quiet
+minigrep -q foo file.txt
 ```
 
 Building
@@ -59,6 +57,3 @@ To build the project, run:
 ```sh
 cargo build --release
 ```
-
-License
-This project is licensed under the MIT License.
