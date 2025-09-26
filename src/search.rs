@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::{fs, path::PathBuf};
 
 pub(crate) struct FileMatches {
@@ -12,14 +13,9 @@ pub(crate) struct MatchedLine {
 }
 
 pub(crate) struct SearchFlags {
-    case_insensitive: bool,
+    pub(crate) case_insensitive: bool,
 }
 
-impl SearchFlags {
-    pub(crate) fn new(case_insensitive: bool) -> Self {
-        SearchFlags { case_insensitive }
-    }
-}
 
 /**
  * Check metadata of path to see if it is a file. Returns false on failure to access metadata.
@@ -66,10 +62,15 @@ pub(crate) fn search_dir(
         Ok(x) => x,
     };
 
-    /* Iterate over contents and recursively process each. */
-    let dir_results: Vec<FileMatches> = dir_iter
-        .filter_map(|dir_entry| dir_entry.ok()) // Only get Err for OS issue - just ignore
-        .filter_map(|dir| search_dir(query, &dir.path(), flags)) // recursively call for each subdir, throw away Nones
+    /* Collect subdirectory paths to vec */
+    let entries: Vec<PathBuf> = dir_iter
+        .filter_map(|dir_entry| dir_entry.ok().map(|e| e.path()))
+        .collect();
+
+    /* Iterate over paths and process each in a new thread using rayon threadpool. */
+    let dir_results: Vec<FileMatches> = entries
+        .par_iter() // rayon threadpool iterator
+        .filter_map(|entry_path| search_dir(query, entry_path, flags)) // recursively call for each subdir, throw away Nones
         .flatten() // Vec<Vec<FileMatches>> -> Vec<FileMatches>
         .collect();
 

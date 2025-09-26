@@ -4,10 +4,19 @@ use crate::{
 };
 use clap::{Arg, ArgMatches, Command};
 use std::path::PathBuf;
+use std::time::Instant;
 
 pub fn run(config: Config) {
-    if let Some(matches) = search_dir(&config.query, &config.path, &config.search_flags) {
-        output_matches(matches, config.query, &config.output_flags);
+    let start = Instant::now();
+
+    let matches = search_dir(&config.query, &config.path, &config.search_flags);
+
+    let duration = start.elapsed();
+
+    println!("Completed search in {} ms.", duration.as_millis());
+
+    if matches.is_some() {
+        output_matches(matches.unwrap(), config.query, &config.output_flags);
     }
 }
 
@@ -48,6 +57,11 @@ pub fn parse_args() -> ArgMatches {
                 .action(clap::ArgAction::SetTrue)
                 .help("Output a count of matches found"),
         )
+        .arg(
+            Arg::new("num_threads")
+                .long("num_threads")
+                .required(false)
+        )
         .get_matches()
 }
 
@@ -70,7 +84,9 @@ impl Config {
                 args.get_flag("quiet"),
                 args.get_flag("count"),
             ),
-            search_flags: SearchFlags::new(args.get_flag("case-insensitive")),
+            search_flags: SearchFlags {
+                case_insensitive: args.get_flag("case-insensitive"),
+            },
         }
     }
 }
