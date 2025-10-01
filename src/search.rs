@@ -1,5 +1,5 @@
 use rayon::prelude::*;
-use std::{fs, path::PathBuf};
+use std::{borrow::Cow, fs, path::PathBuf};
 
 pub(crate) struct FileMatches {
     pub(crate) file_path: PathBuf,
@@ -16,53 +16,37 @@ pub(crate) struct SearchFlags {
     pub(crate) case_insensitive: bool,
 }
 
-
-/**
- * Check metadata of path to see if it is a file. Returns false on failure to access metadata.
- */
-fn is_file(path: &PathBuf) -> bool {
-    match fs::metadata(&path) {
-        Err(e) => {
-            eprintln!(
-                "Error occured when trying to access metadata of {}: {e}",
-                path.display()
-            );
-            return false;
-        }
-        Ok(metadata) => metadata.is_file(),
-    }
-}
-
 /**
  * Recursively search directory. Searches all files in the directory, and searches any/all subdirectories.
  */
 pub(crate) fn search_dir(
-    query: &String,
+    query: &str,
     path: &PathBuf,
     flags: &SearchFlags,
 ) -> Option<Vec<FileMatches>> {
-    /* First check if we have a file. If so, try to read its contents and get matches. Base case of recursion. */
-    if is_file(path) {
-        if let Some(matches) = search_contents(query, path, flags) {
-            return Some(vec![matches]);
-        } else {
-            return None;
-        }
-    }
-
-    /* Get an iterator over contents of directory */
-    let dir_iter = match fs::read_dir(&path) {
-        Err(e) => {
-            eprintln!(
-                "Error occurred when trying to access {}: {e}",
-                path.display()
-            );
-            return None;
-        }
-        Ok(x) => x,
+    /*  Can't access file -> silently fail */
+    let Ok(metadata) = path.metadata() else {
+        return None;
     };
 
-    /* Collect subdirectory paths to vec */
+    if metadata.is_symlink() {
+        return None;
+    }
+
+    /* First check if we have a file. If so, try to read its contents and get matches. Base case of recursion. */
+    if metadata.is_file() {
+        match search_contents(query, path, flags) {
+            Some(matches) => return Some(vec![matches]),
+            None => return None,
+        };
+    }
+
+    /* Otherwise, we have directory. Get an iterator over contents of directory. */
+    let Ok(dir_iter) = fs::read_dir(&path) else {
+        return None;
+    };
+
+    /* Collect directory items' paths to a vec */
     let entries: Vec<PathBuf> = dir_iter
         .filter_map(|dir_entry| dir_entry.ok().map(|e| e.path()))
         .collect();
@@ -86,7 +70,7 @@ pub(crate) fn search_dir(
  * and information about the location of the match.
  */
 pub(crate) fn search_contents(
-    query: &String,
+    query: &str,
     file_path: &PathBuf,
     flags: &SearchFlags,
 ) -> Option<FileMatches> {
@@ -94,22 +78,24 @@ pub(crate) fn search_contents(
         return None; // file doesn't contain valid UTF-8 - just ignore it
     };
 
-    let mut query_copy = query.clone(); // Don't want to affect the original query string
-    if flags.case_insensitive {
-        query_copy.make_ascii_lowercase();
-    }
+    let query_copy = if flags.case_insensitive {
+        Cow::Owned(query.to_ascii_lowercase())
+    } else {
+        Cow::Borrowed(query)
+    };
 
     let mut matched_lines: Vec<MatchedLine> = Vec::new();
     for (line_number, line) in contents.lines().enumerate() {
         let mut match_locations = Vec::new();
 
-        let mut line_copy = line.to_string(); // Same as above but for the buffer contents
-        if flags.case_insensitive {
-            line_copy.make_ascii_lowercase();
-        }
+        let line_copy = if flags.case_insensitive {
+            Cow::Owned(line.to_ascii_lowercase())
+        } else {
+            Cow::Borrowed(line)
+        };
 
         let mut start = 0;
-        while let Some(index) = line_copy[start..].find(&query_copy) {
+        while let Some(index) = line_copy[start..].find(query_copy.as_ref()) {
             let idx = start + index;
             match_locations.push(idx);
             start = idx + 1;
