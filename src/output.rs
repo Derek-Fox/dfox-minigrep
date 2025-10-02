@@ -18,7 +18,7 @@ impl OutputFlags {
     }
 }
 
-pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flags: &OutputFlags) {
+pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flags: OutputFlags) {
     if flags.quiet {
         return;
     }
@@ -28,7 +28,7 @@ pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flag
     for file in file_matches {
         println!("-- {} --", file.file_path.display());
         for line in file.matches {
-            println!("{}", format_line(flags, line, query.len()));
+            println!("{}", format_line(&flags, line, query.len()));
             count += 1;
         }
     }

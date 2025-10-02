@@ -1,5 +1,5 @@
 use rayon::prelude::*;
-use std::{borrow::Cow, fs, path::PathBuf};
+use std::{borrow::Cow, fs, path::{Path, PathBuf}};
 
 pub(crate) struct FileMatches {
     pub(crate) file_path: PathBuf,
@@ -21,7 +21,7 @@ pub(crate) struct SearchFlags {
  */
 pub(crate) fn search_dir(
     query: &str,
-    path: &PathBuf,
+    path: &Path,
     flags: &SearchFlags,
 ) -> Option<Vec<FileMatches>> {
     /*  Can't access file -> silently fail */
@@ -71,7 +71,7 @@ pub(crate) fn search_dir(
  */
 pub(crate) fn search_contents(
     query: &str,
-    file_path: &PathBuf,
+    file_path: &Path,
     flags: &SearchFlags,
 ) -> Option<FileMatches> {
     let Ok(contents) = fs::read_to_string(file_path) else {
@@ -115,7 +115,7 @@ pub(crate) fn search_contents(
     }
 
     Some(FileMatches {
-        file_path: file_path.to_path_buf(),
+        file_path: file_path.into(),
         matches: matched_lines,
     })
 }
