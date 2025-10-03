@@ -5,4 +5,6 @@ edition = "2024"
 
 [dependencies]
 clap = "4.5.47"
+colored = "3.0.0"
 rayon = "1.10"
+regex = { version = "1.11.3", features = ["pattern"] }

@@ -1,12 +1,25 @@
 use crate::{
-    output::{OutputFlags, output_matches},
-    search::{SearchFlags, search_dir},
+    output::{output_matches, OutputFlags},
+    search::{search_dir, PreparedQuery, SearchFlags},
 };
 use clap::{Arg, ArgMatches, Command};
-use std::path::PathBuf;
+use regex::Regex;
+use std::{borrow::Cow, path::PathBuf};
+
+pub(crate) fn prepare_query<'a>(query: &'a str, flags: &SearchFlags) -> Option<PreparedQuery<'a>> {
+    if flags.regexp {
+        Regex::new(query).ok().map(PreparedQuery::Regex)
+    } else if flags.case_insensitive {
+        Some(PreparedQuery::Plain(Cow::Owned(query.to_lowercase())))
+    } else {
+        Some(PreparedQuery::Plain(Cow::Borrowed(query)))
+    }
+}
 
 pub fn run(config: Config) {
-    if let Some(matches) = search_dir(&config.query, &config.path, &config.search_flags) {
+    let prepared_query = prepare_query(&config.query, &config.search_flags)
+        .expect("Invalid regex encountered.");
+    if let Some(matches) = search_dir(&prepared_query, &config.path, &config.search_flags) {
         output_matches(matches, config.query, config.output_flags);
     }
 }
@@ -40,6 +53,13 @@ pub fn parse_args() -> ArgMatches {
                 .short('i')
                 .action(clap::ArgAction::SetTrue)
                 .help("Case insensitive searching"),
+        )
+        .arg(
+            Arg::new("regexp")
+                .long("regexp")
+                .short('p')
+                .action(clap::ArgAction::SetTrue)
+                .help("Match against regular expression"),
         )
         .arg(
             Arg::new("count")
@@ -78,6 +98,7 @@ impl Config {
             },
             search_flags: SearchFlags {
                 case_insensitive: args.get_flag("case-insensitive"),
+                regexp: args.get_flag("regexp"),
             },
         }
     }

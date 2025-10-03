@@ -1,4 +1,5 @@
 use crate::search::{FileMatches, MatchedLine};
+use colored::*; // Add this import
 
 pub(crate) struct OutputFlags {
     pub(crate) color: bool,
@@ -17,7 +18,7 @@ pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flag
     for file in file_matches {
         println!("-- {} --", file.file_path.display());
         for line in file.matches {
-            println!("{}", format_line(&flags, line, query.len()));
+            println!("{}", format_line(&flags, line, &query));
             count += 1;
         }
     }
@@ -30,19 +31,17 @@ pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flag
 /**
  * Add formatting to a string. Specifically, prepend a line number and optionally color.
  */
-fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> String {
+fn format_line(flags: &OutputFlags, matched: MatchedLine, query: &str) -> String {
     let mut line = String::from(matched.line);
 
     if flags.color {
         let ranges: Vec<(usize, usize)> = matched
             .locations
             .iter()
-            .map(|&loc| (loc, loc + query_len))
+            .map(|&loc| (loc, loc + query.len()))
             .collect();
         let merged = merge_ranges(ranges);
-        for (start, end) in merged.into_iter().rev() {
-            colorize_range(start, end - start, &mut line);
-        }
+        line = colorize_ranges(&line, &merged);
     }
 
     if flags.lines {
@@ -55,7 +54,11 @@ fn format_line(flags: &OutputFlags, matched: MatchedLine, query_len: usize) -> S
 /**
  * Merge overlapping or adjacent ranges. Each range is a (start, end) tuple.
  */
-fn merge_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+fn merge_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+    if ranges.is_empty() {
+        return vec![];
+    }
+    ranges.sort_by_key(|r| r.0);
     let mut merged = Vec::new();
     let mut current = ranges[0];
 
@@ -72,12 +75,36 @@ fn merge_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
 }
 
 /**
- * Using ANSI escape sequence for red, colorize the range in line from [idx, idx+length).
+ * Colorize all ranges in the line using the colored crate.
  */
-fn colorize_range(start: usize, length: usize, line: &mut String) {
-    let red = "\x1b[31m";
-    let uncolor = "\x1b[0m";
+fn colorize_ranges(line: &str, ranges: &[(usize, usize)]) -> String {
+    if ranges.is_empty() {
+        return line.to_string();
+    }
 
-    line.insert_str(start + length, uncolor);
-    line.insert_str(start, red);
+    let mut result = String::new();
+    let mut last = 0;
+    for &(start, end) in ranges {
+        // Ensure valid char boundaries
+        let start = line
+            .char_indices()
+            .nth(start)
+            .map(|(i, _)| i)
+            .unwrap_or(line.len());
+        let end = line
+            .char_indices()
+            .nth(end)
+            .map(|(i, _)| i)
+            .unwrap_or(line.len());
+
+        if last < start {
+            result.push_str(&line[last..start]);
+        }
+        result.push_str(&line[start..end].red().to_string());
+        last = end;
+    }
+    if last < line.len() {
+        result.push_str(&line[last..]);
+    }
+    result
 }

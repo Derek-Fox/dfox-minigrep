@@ -1,9 +1,15 @@
 use rayon::prelude::*;
+use regex::Regex;
 use std::{
     borrow::Cow,
     fs,
     path::{Path, PathBuf},
 };
+
+pub enum PreparedQuery<'a> {
+    Plain(Cow<'a, str>),
+    Regex(Regex),
+}
 
 pub(crate) struct FileMatches {
     pub(crate) file_path: PathBuf,
@@ -18,13 +24,14 @@ pub(crate) struct MatchedLine {
 
 pub(crate) struct SearchFlags {
     pub(crate) case_insensitive: bool,
+    pub(crate) regexp: bool,
 }
 
 /**
  * Recursively search directory. Searches all files in the directory, and searches any/all subdirectories.
  */
 pub(crate) fn search_dir(
-    query: &str,
+    prepared_query: &PreparedQuery,
     path: &Path,
     flags: &SearchFlags,
 ) -> Option<Vec<FileMatches>> {
@@ -39,7 +46,7 @@ pub(crate) fn search_dir(
 
     /* First check if we have a file. If so, try to read its contents and get matches. Base case of recursion. */
     if metadata.is_file() {
-        match search_contents(query, path, flags) {
+        match search_contents(prepared_query, path, flags) {
             Some(matches) => return Some(vec![matches]),
             None => return None,
         };
@@ -58,7 +65,7 @@ pub(crate) fn search_dir(
     /* Iterate over paths and process each in a new thread using rayon threadpool. */
     let dir_results: Vec<FileMatches> = entries
         .par_iter() // rayon threadpool iterator
-        .filter_map(|entry_path| search_dir(query, entry_path, flags)) // recursively call for each subdir, throw away Nones
+        .filter_map(|entry_path| search_dir(prepared_query, entry_path, flags)) // recursively call for each subdir, throw away Nones
         .flatten() // Vec<Vec<FileMatches>> -> Vec<FileMatches>
         .collect();
 
@@ -74,41 +81,44 @@ pub(crate) fn search_dir(
  * and information about the location of the match.
  */
 pub(crate) fn search_contents(
-    query: &str,
+    prepared_query: &PreparedQuery,
     file_path: &Path,
     flags: &SearchFlags,
 ) -> Option<FileMatches> {
     let Ok(contents) = fs::read_to_string(file_path) else {
-        return None; // file doesn't contain valid UTF-8 - just ignore it
-    };
-
-    let query_copy = if flags.case_insensitive {
-        Cow::Owned(query.to_ascii_lowercase())
-    } else {
-        Cow::Borrowed(query)
+        return None;
     };
 
     let mut matched_lines: Vec<MatchedLine> = Vec::new();
+
     for (line_number, line) in contents.lines().enumerate() {
         let mut match_locations = Vec::new();
 
-        let line_copy = if flags.case_insensitive {
-            Cow::Owned(line.to_ascii_lowercase())
-        } else {
-            Cow::Borrowed(line)
-        };
-
-        let mut start = 0;
-        while let Some(index) = line_copy[start..].find(query_copy.as_ref()) {
-            let idx = start + index;
-            match_locations.push(idx);
-            start = idx + 1;
+        match prepared_query {
+            PreparedQuery::Regex(re) => {
+                for mat in re.find_iter(line) {
+                    match_locations.push(mat.start());
+                }
+            }
+            PreparedQuery::Plain(query) => {
+                let haystack = if flags.case_insensitive {
+                    Cow::Owned(line.to_lowercase())
+                } else {
+                    Cow::Borrowed(line)
+                };
+                let mut start = 0;
+                while let Some(index) = haystack[start..].find(query.as_ref()) {
+                    let idx = start + index;
+                    match_locations.push(idx);
+                    start = idx + 1;
+                }
+            }
         }
 
         if !match_locations.is_empty() {
             matched_lines.push(MatchedLine {
                 line: line.to_string(),
-                line_number: line_number as u32 + 1, // lines start at 1
+                line_number: line_number as u32 + 1,
                 locations: match_locations,
             });
         }
