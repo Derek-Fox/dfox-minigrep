@@ -70,12 +70,12 @@ impl Config {
             query: args.get_one::<String>("query").unwrap().to_string(),
             path: PathBuf::from(args.get_one::<String>("path").map_or("-", |v| v)),
 
-            output_flags: OutputFlags::new(
-                !args.get_flag("no-color"),
-                !args.get_flag("no-lines"),
-                args.get_flag("quiet"),
-                args.get_flag("count"),
-            ),
+            output_flags: OutputFlags {
+                color: !args.get_flag("no-color"),
+                lines: !args.get_flag("no-lines"),
+                quiet: args.get_flag("quiet"),
+                count: args.get_flag("count"),
+            },
             search_flags: SearchFlags {
                 case_insensitive: args.get_flag("case-insensitive"),
             },

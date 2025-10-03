@@ -1,26 +1,15 @@
 use crate::search::{FileMatches, MatchedLine};
 
 pub(crate) struct OutputFlags {
-    color: bool,
-    lines: bool,
-    quiet: bool,
-    count: bool,
-}
-
-impl OutputFlags {
-    pub(crate) fn new(color: bool, lines: bool, quiet: bool, count: bool) -> Self {
-        OutputFlags {
-            color,
-            lines,
-            quiet,
-            count,
-        }
-    }
+    pub(crate) color: bool,
+    pub(crate) lines: bool,
+    pub(crate) quiet: bool,
+    pub(crate) count: bool,
 }
 
 pub(crate) fn output_matches(file_matches: Vec<FileMatches>, query: String, flags: OutputFlags) {
     if flags.quiet {
-        return;
+        std::process::exit(if file_matches.is_empty() { 1 } else { 0 });
     }
 
     let mut count = 0;

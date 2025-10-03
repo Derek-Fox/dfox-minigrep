@@ -1,5 +1,9 @@
 use rayon::prelude::*;
-use std::{borrow::Cow, fs, path::{Path, PathBuf}};
+use std::{
+    borrow::Cow,
+    fs,
+    path::{Path, PathBuf},
+};
 
 pub(crate) struct FileMatches {
     pub(crate) file_path: PathBuf,
